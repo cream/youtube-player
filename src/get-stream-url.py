@@ -12,7 +12,8 @@ video.request_video_info()
 try:
     resolution = sys.argv[2]
 except IndexError:
-    resolution = video.stream_urls.keys()[0]
+    print video.stream_urls.keys()
+    resolution = video.stream_urls.iterkeys().next()
 else:
     # TODO: Think about new names for stuff like 480p
     resolution = {

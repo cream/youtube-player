@@ -1,8 +1,6 @@
 import os
 import re
 import tempfile
-import thread
-import gtk
 
 STATE_LOADING = 0
 STATE_NULL = 1
@@ -25,13 +23,16 @@ def cleanup_markup(s):
 
 class Lock(object):
     def __init__(self, for_obj):
+        import thread
         self.obj_thread_ident = thread.get_ident()
 
     def __enter__(self):
+        import gtk
         if thread.get_ident() != self.obj_thread_ident:
             gtk.gdk.threads_enter()
 
     def __exit__(self, *exc_stuff_that_nobody_needs):
+        import gtk
         if thread.get_ident() != self.obj_thread_ident:
             gtk.gdk.threads_leave()
 

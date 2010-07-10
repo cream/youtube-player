@@ -11,7 +11,6 @@ from cream.util import cached_property
 from cream.util.dicts import ordereddict
 from common import NamedTempfile
 
-
 VIDEO_INFO_URL      = 'http://www.youtube.com/get_video_info?video_id={video_id}'
 SUBTITLE_LIST_URL   = 'http://video.google.com/timedtext?tlangs=1&type=list&v={video_id}'
 SUBTITLE_GET_URL    = 'http://video.google.com/timedtext?type=track&v={video_id}&lang={language_code}'
@@ -29,9 +28,10 @@ SORT_BY_PUBLISHED  = 'published'
 SORT_BY_RATING     = 'rating'
 
 RESOLUTIONS = ordereddict((
+    (38, '4K'),
     (37, '1080p'),
     (22, '720p'),
-    (35, '480p'),
+    (35, '480p+'),
     (34, '480p'),
     (18, '360p'),
     (5,  'FLV1')
@@ -96,7 +96,6 @@ class Video(object):
         >>> video.bar
         'hello world'
     """
-
     def __init__(self, **attributes):
         for key, value in attributes.iteritems():
             setattr(self, key, value)
@@ -209,17 +208,16 @@ class Video(object):
 
         (``request_video_info`` has to be called before accessing this property)
         """
-        urls = dict()
+        urls = list()
         for item in self.video_info['fmt_url_map'][0].split(','):
             resolution_id, stream_url = item.split('|')
-            resolution_id = int(resolution_id)
             try:
-                resolution_name = RESOLUTIONS[resolution_id]
+                resolution_name = RESOLUTIONS[int(resolution_id)]
             except KeyError:
                 self._warn_unknown_resolution(resolution_id)
             else:
-                urls[resolution_name] = self._cleanup_stream_url(stream_url)
-        return urls
+                urls.append((resolution_name, self._cleanup_stream_url(stream_url)))
+        return ordereddict(urls)
 
     @staticmethod
     def _cleanup_stream_url(url):
