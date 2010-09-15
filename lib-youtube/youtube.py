@@ -9,7 +9,7 @@ import gdata.youtube
 import gdata.youtube.service
 from cream.util import cached_property
 from cream.util.dicts import ordereddict
-from common import NamedTempfile
+from utils import NamedTempfile
 
 VIDEO_INFO_URL      = 'http://www.youtube.com/get_video_info?video_id={video_id}'
 SUBTITLE_LIST_URL   = 'http://video.google.com/timedtext?tlangs=1&type=list&v={video_id}'
@@ -30,11 +30,14 @@ SORT_BY_RATING     = 'rating'
 RESOLUTIONS = ordereddict((
     (38, '4K'),
     (37, '1080p'),
-    (22, '720p'),
-    (35, '480p+'),
-    (34, '480p'),
+    (45, '720p/WebM'),
+    (22, '720p/MPEG'),
+    (43, '480p/WebM'),
+    (35, '480p/MPEG'),
+    (34, '480p/MPEG'),
     (18, '360p'),
-    (5,  'FLV1')
+    (5,  '240p'),
+    (17, 'Mobile')
 ))
 
 

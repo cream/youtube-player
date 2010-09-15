@@ -17,18 +17,6 @@ except IndexError:
     print video.stream_urls.keys()
     resolution = video.stream_urls.iterkeys().next()
 else:
-    # TODO: Think about new names for stuff like 480p
-    resolution = {
-        'low' : '360p',
-        'middle' : '720p',
-        'mid' : '720p',
-        'high' : '1080p',
-        '360' : '360p',
-        '480' : '480p',
-        '480+' : '480p+',
-        '720' : '720p',
-        '1080' : '1080p'
-    }.get(resolution, resolution)
     if resolution not in video.stream_urls:
         print "Warning: Requested video {video_id} is not available in {resolution}!".format(**globals())
         resolution = video.stream_urls.iterkeys().next()
