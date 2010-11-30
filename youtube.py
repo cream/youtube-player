@@ -1,15 +1,16 @@
+#!/usr/bin/env python
+import os
 import re
 import urllib2
 import urlparse
 import datetime
+import tempfile
 from lxml.etree import XMLSyntaxError, parse as parse_xml, \
                        fromstring as parse_xml_from_string
 
 import gdata.youtube
 import gdata.youtube.service
-from cream.util import cached_property
-from cream.util.dicts import ordereddict
-from common import NamedTempfile
+from collections import OrderedDict
 
 VIDEO_INFO_URL      = 'http://www.youtube.com/get_video_info?video_id={video_id}'
 SUBTITLE_LIST_URL   = 'http://video.google.com/timedtext?tlangs=1&type=list&v={video_id}'
@@ -27,7 +28,7 @@ SORT_BY_VIEW_COUNT = 'viewCount'
 SORT_BY_PUBLISHED  = 'published'
 SORT_BY_RATING     = 'rating'
 
-RESOLUTIONS = ordereddict((
+RESOLUTIONS = OrderedDict((
     (38, '4K'),
     (37, '1080p'),
     (22, '720p'),
@@ -37,6 +38,54 @@ RESOLUTIONS = ordereddict((
     (5,  'FLV1')
 ))
 
+
+class NamedTempfile(object):
+    """
+    Reusable, named temporary file.
+
+    A new temporary file is created only if no file named ``name`` in ``dir``
+    exists, otherwise the existing file is reused.
+
+    Can be used i.e. for caching thumbnails, stream data and so on.
+    """
+    def __init__(self, name, dir='youtube.py', auto_delete=False, auto_open=True):
+        self.dir = os.path.join(tempfile.gettempdir(), dir)
+        self.name = os.path.join(self.dir, name)
+        self.auto_delete = auto_delete
+
+        self._ensure_dir_exists()
+        self.file = self._open_file(self.name)
+        if not auto_open:
+            self.file.close()
+            del self.file
+
+    def isempty(self):
+        return os.path.getsize(self.file.name) == 0
+
+    def delete(self):
+        self.file.close() # make sure the file is closed.
+        os.remove(self.name)
+
+    def _ensure_dir_exists(self):
+        if not os.path.exists(self.dir):
+            os.makedirs(self.dir)
+
+    def _open_file(self, fname):
+        if not os.path.exists(fname):
+            return open(fname, 'w+')
+        else:
+            return open(fname, 'r+')
+
+    def __del__(self):
+        if self.auto_delete:
+            self.delete()
+
+    # context manager support
+    def __enter__(self, *args, **kwargs):
+        return self.file.__enter__(*args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        return self.file.__exit__(*args, **kwargs)
 
 class YouTubeError(Exception):
     pass
@@ -200,7 +249,7 @@ class Video(object):
             raise RuntimeError("Cannot access 'video_info': Make sure to request "
                                "it using 'request_video_info' first.")
 
-    @cached_property
+    @property
     def stream_urls(self):
         """
         A dictionary of directly streamable URLs in all resolutions that are
@@ -208,16 +257,19 @@ class Video(object):
 
         (``request_video_info`` has to be called before accessing this property)
         """
-        urls = list()
-        for item in self.video_info['fmt_url_map'][0].split(','):
-            resolution_id, stream_url = item.split('|')
-            try:
-                resolution_name = RESOLUTIONS[int(resolution_id)]
-            except KeyError:
-                self._warn_unknown_resolution(resolution_id)
-            else:
-                urls.append((resolution_name, self._cleanup_stream_url(stream_url)))
-        return ordereddict(urls)
+        cached = getattr(self, '_stream_urls', None)
+        if cached is None:
+            urls = list()
+            for item in self.video_info['fmt_url_map'][0].split(','):
+                resolution_id, stream_url = item.split('|')
+                try:
+                    resolution_name = RESOLUTIONS[int(resolution_id)]
+                except KeyError:
+                    self._warn_unknown_resolution(resolution_id)
+                else:
+                    urls.append((resolution_name, self._cleanup_stream_url(stream_url)))
+            self._stream_urls = cached = OrderedDict(urls)
+        return cached
 
     @staticmethod
     def _cleanup_stream_url(url):
@@ -248,10 +300,12 @@ class Video(object):
 
         (``request_video_info`` has to be called before accessing this property)
         """
-        return self._thumbnail_path
+        cached = getattr(self, '_thumbnail_path', None)
+        if cached is None:
+            self._thumbnail_path = cached = self._get_thumbnail_path()
+        return cached
 
-    @cached_property
-    def _thumbnail_path(self):
+    def _get_thumbnail_path(self):
         if self.thumbnail_url is None:
             return None
 
@@ -387,3 +441,29 @@ class API(object):
 
         for entry in feed.entry:
             yield Video.from_feed_entry(entry)
+
+if __name__ == '__main__':
+    import sys
+    args = sys.argv[1:]
+
+    if not args:
+        print >> sys.stderr, "Usage: %s ID [-q] [program]" % sys.argv[0]
+        exit(1)
+
+    video_id = args.pop(0)
+    if 'v=' in video_id:
+        import urlparse
+        video_id = urlparse.parse_qs(urlparse.urlparse(video_id).query)['v'][0]
+
+    video = Video(video_id=video_id)
+    video.request_video_info()
+
+    if args and args[0] == '-q':
+        print video.stream_urls.iterkeys().next()
+        args = args[1:]
+
+    video_url = video.stream_urls.itervalues().next()
+    print video_url
+
+    if args and args[0]:
+        os.system("%s '%s'" % (args[0], video_url))
